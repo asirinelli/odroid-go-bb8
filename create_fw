@@ -1,0 +1,6 @@
+#!/bin/sh
+set -e
+
+ffmpeg -y -i bb8.png -f rawvideo -pix_fmt rgb565 bb8.raw
+mkfw BB8 bb8.raw 0 16 1048576 app build/bb8.bin
+

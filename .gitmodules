@@ -1,0 +1,3 @@
+[submodule "submodules/odroid-go-firmware"]
+	path = submodules/odroid-go-firmware
+	url = https://github.com/OtherCrashOverride/odroid-go-firmware.git
