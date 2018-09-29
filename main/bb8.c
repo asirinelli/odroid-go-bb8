@@ -19,9 +19,7 @@
 #include "esp_log.h"
 #include "input.h"
 
-#define BB8_GUI
-
-#ifdef BB8_GUI
+#if CONFIG_BB8_GUI
 #include "odroid_display.h"
 #include "../components/ugui/ugui.h"
 #endif
@@ -37,7 +35,7 @@ static void esp_gattc_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp
 static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
 					  esp_ble_gattc_cb_param_t * param);
 
-static esp_bd_addr_t bb8_mac = { 0xe5, 0x12, 0x88, 0x32, 0x81, 0x75 };
+static esp_bd_addr_t bb8_mac;
 
 static bool Isconnecting = false;
 
@@ -68,7 +66,7 @@ static struct gattc_profile_inst gl_profile_tab[PROFILE_NUM] = {
 
 enum program_status_enum { CONNECTION, ANTIDOS, TXPOWER, WAKECPU, READY } program_status;
 
-#ifdef BB8_GUI
+#if CONFIG_BB8_GUI
 uint16_t *fb;
 UG_GUI gui;
 
@@ -164,6 +162,26 @@ static void DisplaySpeed()
 
 #endif
 
+static void init_mac()
+{
+  int values[6];
+
+  if (6 == sscanf(CONFIG_BB8_MAC, "%x:%x:%x:%x:%x:%x%*c",
+		  &values[0], &values[1], &values[2],
+		  &values[3], &values[4], &values[5])) {
+
+    for(int i = 0; i < 6; ++i)
+      bb8_mac[i] = (uint8_t) values[i];
+
+    ESP_LOGI(GATTC_TAG, "BB8 MAC address configured:");
+    esp_log_buffer_hex(GATTC_TAG, bb8_mac, ESP_BD_ADDR_LEN);
+  }
+  else {
+    ESP_LOGE(GATTC_TAG, "Invalid MAC Address!");
+  }
+}
+
+
 static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
 					  esp_ble_gattc_cb_param_t * param)
 {
@@ -178,9 +196,6 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     if (scan_ret) {
       ESP_LOGE(GATTC_TAG, "set scan params error, error code = %x", scan_ret);
     }
-    /* esp_err_t err = esp_ble_gattc_open(gattc_if, bb8_mac, BLE_ADDR_TYPE_PUBLIC, true); */
-    /* if (err != ESP_OK) */
-    /*        ESP_LOGE(GATTC_TAG, "Error esp_ble_gattc_open: %d", err); */
     break;
 
   case ESP_GATTC_OPEN_EVT:
@@ -299,7 +314,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t * pa
   case ESP_GAP_BLE_SCAN_RESULT_EVT:
     ESP_LOGI(GATTC_TAG, "SCAN_RESULTE_EVT");
     esp_ble_gap_cb_param_t *scan_result = (esp_ble_gap_cb_param_t *) param;
-    esp_log_buffer_hex(GATTC_TAG, scan_result->scan_rst.bda, 6);
+    esp_log_buffer_hex(GATTC_TAG, scan_result->scan_rst.bda, ESP_BD_ADDR_LEN);
     if (memcmp(scan_result->scan_rst.bda, bb8_mac, ESP_BD_ADDR_LEN) == 0) {
       ESP_LOGI(GATTC_TAG, "BB8 !!!");
       if (Isconnecting) {
@@ -448,7 +463,9 @@ void run_bb8()
     if (!previousState.values[ODROID_INPUT_SELECT] && state.values[ODROID_INPUT_SELECT]) {
       if (go != 0x02) {
 	go = 0x02;
+#if CONFIG_BB8_GUI
 	display_color = C_RED;
+#endif
 	// Red
 	{
 	  uint8_t data[] = { 0xff, 0x00, 0x00, 0x00 };
@@ -456,7 +473,9 @@ void run_bb8()
 	}
       } else {
 	go = 0x01;
+#if CONFIG_BB8_GUI
 	display_color = C_GREEN;
+#endif
 	// Green
 	{
 	  uint8_t data[] = { 0x00, 0xff, 0x00, 0x00 };
@@ -482,7 +501,7 @@ void run_bb8()
 	data[3] = go;
 
       send_command(0x02, 0x30, 4, data);
-#ifdef BB8_GUI
+#if CONFIG_BB8_GUI
       display_speed = new_speed;
       display_angle = new_heading;
 #endif
@@ -546,6 +565,8 @@ void test_input()
 void app_main()
 {
 
+  init_mac();
+
   input_init();
 
   esp_err_t ret = nvs_flash_init();
@@ -555,7 +576,7 @@ void app_main()
   }
   ESP_ERROR_CHECK(ret);
 
-#ifdef BB8_GUI
+#if CONFIG_BB8_GUI
   fb = malloc(320 * 240 * sizeof(uint16_t));
   if (fb == NULL)
     ESP_LOGE(GATTC_TAG, "Memory allocation error, please configure SPIRAM");
@@ -576,7 +597,7 @@ void app_main()
 
   test_input();
 
-#ifdef BB8_GUI
+#if CONFIG_BB8_GUI
   print_message("Initialisation...");
   ui_update_display();
 #endif
@@ -632,7 +653,7 @@ void app_main()
   }
   program_status = CONNECTION;
 
-#ifdef BB8_GUI
+#if CONFIG_BB8_GUI
   print_message("Connecting...");
   ui_update_display();
 #endif
@@ -676,7 +697,7 @@ void app_main()
   gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
   gpio_set_level(GPIO_NUM_2, 1);
 
-#ifdef BB8_GUI
+#if CONFIG_BB8_GUI
   print_message("");
   const esp_timer_create_args_t periodic_timer_args = {
     .callback = &DisplaySpeed,
@@ -711,7 +732,7 @@ void app_main()
   // gpio_set_level(GPIO_NUM_2, 0);
 
   // turn screen off;
-#ifdef BB8_GUI
+#if CONFIG_BB8_GUI
   ESP_ERROR_CHECK(esp_timer_stop(periodic_timer));
   backlight_deinit();
 #endif

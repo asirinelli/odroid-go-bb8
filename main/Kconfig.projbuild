@@ -1,0 +1,13 @@
+menu "BB-8 remote control"
+
+config BB8_MAC
+    string "BB-8 Bluetooth MAC address"
+    default "e5:12:88:32:81:75"
+    help
+        Bluetooth MAC address of the Spero BB-8 toy to be controlled.
+
+config BB8_GUI
+    bool "Use of screen"
+    default y
+
+endmenu
