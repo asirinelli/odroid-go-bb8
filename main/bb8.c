@@ -35,8 +35,6 @@ static void esp_gattc_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp
 static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
 					  esp_ble_gattc_cb_param_t * param);
 
-static esp_bd_addr_t bb8_mac;
-
 static bool Isconnecting = false;
 
 static esp_ble_scan_params_t ble_scan_params = {
@@ -162,6 +160,9 @@ static void DisplaySpeed()
 
 #endif
 
+#if CONFIG_STATIC_MAC
+static esp_bd_addr_t bb8_mac;
+
 static void init_mac()
 {
   int values[6];
@@ -179,6 +180,34 @@ static void init_mac()
   else {
     ESP_LOGE(GATTC_TAG, "Invalid MAC Address!");
   }
+}
+#endif
+
+uint8_t check_if_bb8(struct ble_scan_result_evt_param scan_rst)
+{
+
+#if CONFIG_STATIC_MAC
+  if (memcmp(scan_rst.bda, bb8_mac, ESP_BD_ADDR_LEN) == 0)
+    return 1;
+  else
+    return 0;
+
+#else
+
+  uint8_t adv_name_len = 0;
+  uint8_t *adv_name;
+
+  adv_name = esp_ble_resolve_adv_data(scan_rst.ble_adv, ESP_BLE_AD_TYPE_NAME_CMPL, &adv_name_len);
+  ESP_LOGI(GATTC_TAG, "adv_name_len: %d", adv_name_len);
+  esp_log_buffer_char(GATTC_TAG, adv_name, adv_name_len);
+  if (adv_name_len > 3)
+    if ((adv_name[0] == 'B') && (adv_name[1] == 'B') && (adv_name[2] == '-'))
+      return 1;
+
+  return 0;
+
+#endif
+
 }
 
 
@@ -314,18 +343,22 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t * pa
   case ESP_GAP_BLE_SCAN_RESULT_EVT:
     ESP_LOGI(GATTC_TAG, "SCAN_RESULTE_EVT");
     esp_ble_gap_cb_param_t *scan_result = (esp_ble_gap_cb_param_t *) param;
-    esp_log_buffer_hex(GATTC_TAG, scan_result->scan_rst.bda, ESP_BD_ADDR_LEN);
-    if (memcmp(scan_result->scan_rst.bda, bb8_mac, ESP_BD_ADDR_LEN) == 0) {
-      ESP_LOGI(GATTC_TAG, "BB8 !!!");
-      if (Isconnecting) {
-	break;
-      }
-      Isconnecting = true;
-      esp_ble_gap_stop_scanning();
-      esp_ble_gattc_open(gl_profile_tab[PROFILE_A_APP_ID].gattc_if, scan_result->scan_rst.bda,
-			 scan_result->scan_rst.ble_addr_type, true);
 
+    if (scan_result->scan_rst.search_evt == ESP_GAP_SEARCH_INQ_RES_EVT) {
+      esp_log_buffer_hex(GATTC_TAG, scan_result->scan_rst.bda, ESP_BD_ADDR_LEN);
+
+      if (check_if_bb8(scan_result->scan_rst)) {
+	ESP_LOGI(GATTC_TAG, "BB8 !!!");
+	if (Isconnecting) {
+	  break;
+	}
+	Isconnecting = true;
+	esp_ble_gap_stop_scanning();
+	esp_ble_gattc_open(gl_profile_tab[PROFILE_A_APP_ID].gattc_if, scan_result->scan_rst.bda,
+			   scan_result->scan_rst.ble_addr_type, true);
+      }
     }
+
     break;
 
   case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
@@ -403,7 +436,7 @@ void send_command(uint8_t did, uint8_t cid, uint8_t data_length, uint8_t * data)
 					     ESP_GATT_WRITE_TYPE_RSP,
 					     ESP_GATT_AUTH_REQ_NONE);
   if (write != ESP_GATT_OK)
-    ESP_LOGE(GATTC_TAG, "Error writing antidos");
+    ESP_LOGE(GATTC_TAG, "Error writing command");
   free(packet);
   seq++;
 }
@@ -564,8 +597,9 @@ void test_input()
 
 void app_main()
 {
-
+#if CONFIG_STATIC_MAC
   init_mac();
+#endif
 
   input_init();
 

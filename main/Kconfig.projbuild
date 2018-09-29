@@ -1,8 +1,18 @@
 menu "BB-8 remote control"
 
+config STATIC_MAC
+    bool "Set a static MAC address"
+    default n
+    help
+        Connect based on a given MAC address to the Sphero BB-8 toy.
+
+	Otherwise, it will try to connect to any BLE device with a name
+	starting with "BB-"
+
 config BB8_MAC
     string "BB-8 Bluetooth MAC address"
     default "e5:12:88:32:81:75"
+    depends on STATIC_MAC
     help
         Bluetooth MAC address of the Spero BB-8 toy to be controlled.
 

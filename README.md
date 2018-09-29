@@ -15,9 +15,8 @@ You should have updated your `PATH` environment variable to add the toolchain
 programs. 
 4. Clone this repository and enter the created directory.
 5. Pull the submodules: `git submodule init && git submodule update`
-6. Run `make menuconfig` to change your BB-8 bluetooth MAC address
-7. Compile: `make`
-8. Flash your odroid-go: `make flash`
+6. Compile: `make`
+7. Flash your odroid-go: `make flash`
 
 ## Licence
 
